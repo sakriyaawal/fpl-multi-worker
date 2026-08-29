@@ -26,7 +26,7 @@ export default {
     const path = url.pathname.split("/").filter(Boolean);
 
     try {
-      // 1. LIVE DATA: Current Gameweek Standings from FPL API
+      // 1. LIVE DATA: Current Gameweek Standings + Global Event State
       if (path[0] === "api" && path[1] === "live" && path[2] === "standings") {
         const leagueId = url.searchParams.get("league_id");
         const page = url.searchParams.get("page") || "1";
@@ -35,28 +35,59 @@ export default {
           return jsonResponse({ error: "Missing required query parameter: league_id" }, 400);
         }
 
-        // Forward page_standings param to official FPL API
-        const fplUrl = `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/?page_standings=${page}`;
-        const fplResponse = await fetch(fplUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FPL-Worker-Reader/1.0",
-          },
-        });
+        const standingsUrl = `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/?page_standings=${page}`;
+        const bootstrapUrl = `https://fantasy.premierleague.com/api/bootstrap-static/`;
 
-        if (!fplResponse.ok) {
+        // Fetch standings and global event status in parallel
+        const [standingsRes, bootstrapRes] = await Promise.all([
+          fetch(standingsUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FPL-Worker-Reader/1.0",
+            },
+          }),
+          fetch(bootstrapUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FPL-Worker-Reader/1.0",
+            },
+          }),
+        ]);
+
+        if (!standingsRes.ok) {
           return jsonResponse(
             { error: "Failed to fetch live standings from official FPL API" },
-            fplResponse.status
+            standingsRes.status
           );
         }
 
-        const rawData: any = await fplResponse.json();
+        const rawData: any = await standingsRes.json();
+
+        // Resolve current active gameweek from bootstrap-static
+        let currentGameweek = rawData.event || 0;
+
+        if (bootstrapRes.ok) {
+          const bootstrapData: any = await bootstrapRes.json();
+          const events: any[] = bootstrapData.events || [];
+
+          // Locate current active gameweek or next upcoming gameweek
+          const activeEvent =
+            events.find((e: any) => e.is_current === true) ||
+            events.find((e: any) => e.is_next === true);
+
+          if (activeEvent) {
+            currentGameweek = activeEvent.id;
+          }
+        }
+
+        // Fallback safety to ensure active GW is never 0
+        if (!currentGameweek || currentGameweek === 0) {
+          currentGameweek = 1;
+        }
 
         const structuredLiveResponse = {
           league_id: rawData.league?.id,
           league_name: rawData.league?.name,
-          current_gameweek_id: rawData.event || 0,
-          current_gameweek_name: `Gameweek ${rawData.event || 0}`,
+          current_gameweek_id: currentGameweek,
+          current_gameweek_name: `Gameweek ${currentGameweek}`,
           page: parseInt(page, 10),
           has_next: rawData.standings?.has_next ?? false,
           standings: (rawData.standings?.results || []).map((item: any) => ({
