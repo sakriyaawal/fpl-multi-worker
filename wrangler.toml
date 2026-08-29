@@ -1,0 +1,7 @@
+name = "fpl-league-reader"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "FPL_KV"
+id = "<YOUR_CLOUDFLARE_KV_NAMESPACE_ID>"
