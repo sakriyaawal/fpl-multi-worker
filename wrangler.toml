@@ -3,5 +3,5 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
 [[kv_namespaces]]
-binding = "FPL_KV"
-id = "<YOUR_CLOUDFLARE_KV_NAMESPACE_ID>"
+binding = "FPL_HISTORICAL_DATA"
+id = "1dac141e90944cab881a95abc1c902cc"
