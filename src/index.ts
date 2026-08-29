@@ -1,8 +1,7 @@
 export interface Env {
-  FPL_KV: KVNamespace; // Bind your KV Namespace in wrangler.toml as FPL_KV
+  FPL_HISTORICAL_DATA: KVNamespace;
 }
 
-// Helper to standardise CORS & JSON responses
 const jsonResponse = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data, null, 2), {
     status,
@@ -15,7 +14,6 @@ const jsonResponse = (data: unknown, status = 200) =>
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Handle CORS Preflight
     if (request.method === "OPTIONS") {
       return jsonResponse(null, 204);
     }
@@ -28,10 +26,7 @@ export default {
     const path = url.pathname.split("/").filter(Boolean);
 
     try {
-      // -------------------------------------------------------------
-      // 1. LIVE DATA: Current Gameweek & Standings from FPL API
-      // Endpoint: GET /api/live/standings?league_id=164381
-      // -------------------------------------------------------------
+      // 1. LIVE DATA: Current Gameweek Standings from FPL API
       if (path[0] === "api" && path[1] === "live" && path[2] === "standings") {
         const leagueId = url.searchParams.get("league_id");
         if (!leagueId) {
@@ -54,7 +49,6 @@ export default {
 
         const rawData: any = await fplResponse.json();
 
-        // Transform into clean structure
         const structuredLiveResponse = {
           league_id: rawData.league?.id,
           league_name: rawData.league?.name,
@@ -75,37 +69,25 @@ export default {
         return jsonResponse(structuredLiveResponse);
       }
 
-      // -------------------------------------------------------------
-      // 2. KV READ: League Metadata
-      // Endpoint: GET /api/kv/metadata?league_key=bhaktapurian
-      // Key: league:{league_key}:metadata
-      // -------------------------------------------------------------
+      // 2. KV READ: Metadata
       if (path[0] === "api" && path[1] === "kv" && path[2] === "metadata") {
         const leagueKey = url.searchParams.get("league_key");
         if (!leagueKey) return jsonResponse({ error: "Missing parameter: league_key" }, 400);
 
-        const data = await env.FPL_KV.get(`league:${leagueKey}:metadata`, "json");
+        const data = await env.FPL_HISTORICAL_DATA.get(`league:${leagueKey}:metadata`, "json");
         return data ? jsonResponse(data) : jsonResponse({ error: "Metadata not found in KV" }, 404);
       }
 
-      // -------------------------------------------------------------
-      // 3. KV READ: League Winners Table
-      // Endpoint: GET /api/kv/winners?league_key=bhaktapurian
-      // Key: league:{league_key}:winners
-      // -------------------------------------------------------------
+      // 3. KV READ: League Winners
       if (path[0] === "api" && path[1] === "kv" && path[2] === "winners") {
         const leagueKey = url.searchParams.get("league_key");
         if (!leagueKey) return jsonResponse({ error: "Missing parameter: league_key" }, 400);
 
-        const data = await env.FPL_KV.get(`league:${leagueKey}:winners`, "json");
+        const data = await env.FPL_HISTORICAL_DATA.get(`league:${leagueKey}:winners`, "json");
         return data ? jsonResponse(data) : jsonResponse({ error: "Winners data not found in KV" }, 404);
       }
 
-      // -------------------------------------------------------------
-      // 4. KV READ: Historical Gameweek Data
-      // Endpoint: GET /api/kv/gw?league_key=bhaktapurian&gw=1
-      // Key: league:{league_key}:gw:{gw}
-      // -------------------------------------------------------------
+      // 4. KV READ: Historical Gameweek
       if (path[0] === "api" && path[1] === "kv" && path[2] === "gw") {
         const leagueKey = url.searchParams.get("league_key");
         const gw = url.searchParams.get("gw");
@@ -114,20 +96,16 @@ export default {
           return jsonResponse({ error: "Missing parameter: league_key or gw" }, 400);
         }
 
-        const data = await env.FPL_KV.get(`league:${leagueKey}:gw:${gw}`, "json");
+        const data = await env.FPL_HISTORICAL_DATA.get(`league:${leagueKey}:gw:${gw}`, "json");
         return data ? jsonResponse(data) : jsonResponse({ error: `Gameweek ${gw} history not found in KV` }, 404);
       }
 
-      // -------------------------------------------------------------
-      // 5. KV READ: League Managers Snapshot
-      // Endpoint: GET /api/kv/managers?league_key=bhaktapurian
-      // Key: league:{league_key}:managers
-      // -------------------------------------------------------------
+      // 5. KV READ: Managers
       if (path[0] === "api" && path[1] === "kv" && path[2] === "managers") {
         const leagueKey = url.searchParams.get("league_key");
         if (!leagueKey) return jsonResponse({ error: "Missing parameter: league_key" }, 400);
 
-        const data = await env.FPL_KV.get(`league:${leagueKey}:managers`, "json");
+        const data = await env.FPL_HISTORICAL_DATA.get(`league:${leagueKey}:managers`, "json");
         return data ? jsonResponse(data) : jsonResponse({ error: "Managers list not found in KV" }, 404);
       }
 
