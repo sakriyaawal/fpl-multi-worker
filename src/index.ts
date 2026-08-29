@@ -29,11 +29,14 @@ export default {
       // 1. LIVE DATA: Current Gameweek Standings from FPL API
       if (path[0] === "api" && path[1] === "live" && path[2] === "standings") {
         const leagueId = url.searchParams.get("league_id");
+        const page = url.searchParams.get("page") || "1";
+
         if (!leagueId) {
           return jsonResponse({ error: "Missing required query parameter: league_id" }, 400);
         }
 
-        const fplUrl = `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`;
+        // Forward page_standings param to official FPL API
+        const fplUrl = `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/?page_standings=${page}`;
         const fplResponse = await fetch(fplUrl, {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FPL-Worker-Reader/1.0",
@@ -54,6 +57,8 @@ export default {
           league_name: rawData.league?.name,
           current_gameweek_id: rawData.event || 0,
           current_gameweek_name: `Gameweek ${rawData.event || 0}`,
+          page: parseInt(page, 10),
+          has_next: rawData.standings?.has_next ?? false,
           standings: (rawData.standings?.results || []).map((item: any) => ({
             entry: item.entry,
             team_name: item.entry_name,
